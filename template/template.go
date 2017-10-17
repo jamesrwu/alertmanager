@@ -215,6 +215,21 @@ func (kv KV) Values() []string {
 	return kv.SortedPairs().Values()
 }
 
+// Export key values from a KV to KVS
+func (kv KV) ExportToKVS() KVS {
+	var keyValues = map[string]map[string]bool{}
+	for k, v := range kv {
+		if _, ok := keyValues[k]; ! ok {
+			keyValues[k] = map[string]bool{}
+		}
+		keyValues[k][v] = true
+	}
+	return keyValues
+}
+
+// KVS is a map of key/set of values.
+type KVS map[string](map[string]bool)
+
 // Data is the data passed to notification templates and webhook pushes.
 //
 // End-users should not be exposed to Go's type system, as this will confuse them and prevent
@@ -227,6 +242,8 @@ type Data struct {
 	GroupLabels       KV `json:"groupLabels"`
 	CommonLabels      KV `json:"commonLabels"`
 	CommonAnnotations KV `json:"commonAnnotations"`
+	UniqueLabels      KVS `json:"uniqueLabels"`
+	UniqueAnnotations KVS `json:"uniqueAnnotations"`
 
 	ExternalURL string `json:"externalURL"`
 }
@@ -275,6 +292,8 @@ func (t *Template) Data(recv string, groupLabels model.LabelSet, alerts ...*type
 		GroupLabels:       KV{},
 		CommonLabels:      KV{},
 		CommonAnnotations: KV{},
+		UniqueLabels:      KVS{},
+		UniqueAnnotations: KVS{},
 		ExternalURL:       t.ExternalURL.String(),
 	}
 
@@ -306,6 +325,8 @@ func (t *Template) Data(recv string, groupLabels model.LabelSet, alerts ...*type
 		var (
 			commonLabels      = alerts[0].Labels.Clone()
 			commonAnnotations = alerts[0].Annotations.Clone()
+			uniqueLabels      = alerts[0].Labels.ExportToKVS()
+			uniqueAnnotations = alerts[0].Annotations.ExportToKVS()
 		)
 		for _, a := range alerts[1:] {
 			for ln, lv := range commonLabels {
@@ -324,6 +345,12 @@ func (t *Template) Data(recv string, groupLabels model.LabelSet, alerts ...*type
 		}
 		for k, v := range commonAnnotations {
 			data.CommonAnnotations[string(k)] = string(v)
+		}
+		for k,v := range uniqueLabels {
+			data.UniqueLabels[string(k)] = v
+		}
+		for k,v := range uniqueAnnotations {
+			data.UniqueAnnotations[string(k)] = v
 		}
 	}
 
